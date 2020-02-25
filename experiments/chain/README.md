@@ -103,6 +103,6 @@ The problem persists even after system shutdown and termination of all other use
 
 The problem may have some implications on how to implement and carry out multithreading on affected machines. It seems that such unbalanced threads  require load balancing to make things effective. Relocating single-threaded applications to threads other than 1 maybe effective as well.
 
-I opened an issue on
+I opened an [issue on JuliaLang](https://github.com/JuliaLang/julia/issues/34875).
 
 Paul Bayer, 2020-02-25
