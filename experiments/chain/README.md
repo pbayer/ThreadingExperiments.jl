@@ -2,7 +2,7 @@
 
 **note:** there is a thread on this on [Julia Discourse](https://discourse.julialang.org/t/lightweight-tasks-julia-vs-elixir-otp/35082) as well.
 
-I wanted to know if Julia copes well with very lightweight tasks. Therefore I took [an example](https://media.pragprog.com/titles/elixir16/code/spawn/chain.exs) from [Programming Elixir 1.6](https://pragprog.com/book/elixir16/programming-elixir-1-6) and implemented it in Julia:
+I wanted to know if Julia copes well with lots of very lightweight tasks. Therefore I took [an example](https://media.pragprog.com/titles/elixir16/code/spawn/chain.exs) from [Programming Elixir 1.6](https://pragprog.com/book/elixir16/programming-elixir-1-6) and implemented it in Julia:
 
 ```julia
 function counter(next::Channel{Int})
@@ -19,10 +19,10 @@ function create_processes(start::Channel{Int}, n::Int; spawn=false)
 
     take!(start)
 end
-```
-This is a strictly sequential operation over multiple threads.
 
-then
+const start = Channel{Int}()
+```
+This sets up a chain of `counter` tasks listening to their channel `ch` and sending an invremented token to the `next` task. We start the chain by sending zero to the last created task and receive the result from the channel we started with. Then …
 
 ```julia
 julia> using BenchmarkTools
@@ -31,8 +31,7 @@ julia> @btime create_processes(start, 1000, spawn=true)
   1.912 ms (33328 allocations: 1.78 MiB)
 1000
 ```
-
-The result were as follows:
+Those were 1000 established channels and `counter` tasks and 1000 `take!` and `put!`-operations. It is a strictly sequential chain process over multiple threads. The results were as follows:
 
 ![results](chain.png)
 
@@ -48,7 +47,7 @@ julia> @btime create_processes(start, 1000)
 1000
 ```
 
-I investigated the thing further by writing a function, which allows me to start the chain on specific threads.
+I investigated the thing further by writing a function allowing me to start the chain on specific threads.
 
 ```julia
 function startonthread(id::Int, start::Channel{Int}, n::Int; spawn=false)
@@ -62,7 +61,7 @@ function startonthread(id::Int, start::Channel{Int}, n::Int; spawn=false)
 end
 ```
 
-The results were as follows:
+This gave the following results:
 
 ```julia
 julia> @btime startonthread(1, start, 1000)
@@ -82,7 +81,7 @@ julia> @btime startonthread(4, start, 1000)
 1000
 ```
 
-The chain takes much longer on thread 1 than on thread 2 - 4. My machine is a MacBook Pro 2013, 4 cores, 16 GB memory, L2-Cache (per core):	256 KB
+The chain takes much longer on thread 1 than on threads 2 - 4. My machine is a MacBook Pro 2013, 4 cores, 16 GB memory, L2-Cache (per core):	256 KB
 
 ```julia
 julia> versioninfo()
