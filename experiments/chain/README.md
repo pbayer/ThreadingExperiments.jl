@@ -98,10 +98,73 @@ Environment:
   JULIA_EDITOR = atom  -a
 ```
 
-The problem persists even after system shutdown and termination of all other user apps. Therefore I guess, that the OS is using part of the L2-cache on thread 1. This slows down memory intensive operations on thread 1. Other users on Discourse reported slowdowns on thread 1 of their machines, albeit not so dramatic ones than on mine.
+The problem persists even after system shutdown and termination of all other user apps.
 
 The problem may have some implications on how to implement and carry out multithreading on affected machines. It seems that such unbalanced threads  require load balancing to make things effective. Relocating single-threaded applications to threads other than 1 maybe effective as well.
 
 I opened an [issue on JuliaLang](https://github.com/JuliaLang/julia/issues/34875).
 
-Paul Bayer, 2020-02-25
+## A minimal working Example
+
+As the following example shows, the problem has to do with yielding to other tasks operating on thread 1 outside my application:
+
+```julia
+function machin_series(n::Int; handover=false)
+    qpi = 0.0
+    for i in 1:n
+        qpi += (-1)^(i+1)/(2i-1)
+        handover && yield()  # we yield here !!!!
+    end
+    qpi*4
+end
+
+function startonthread(id::Int, f::F) where {F<:Function}
+    t = Task(nothing)
+    @threads for i in 1:nthreads()
+        if i == id
+            t = @async f()
+        end
+    end
+    fetch(t)
+end
+```
+The results were as follows:
+```julia
+julia> @btime startonthread(1, ()->machin_series(10_000))
+  491.870 μs (43 allocations: 4.20 KiB)
+3.1414926535900345
+
+julia> @btime startonthread(2, ()->machin_series(10_000))
+  511.001 μs (45 allocations: 4.23 KiB)
+3.1414926535900345
+
+julia> @btime startonthread(1, ()->machin_series(10_000, handover=true))
+  147.722 ms (10044 allocations: 160.47 KiB)    ## !!!!!!!
+3.1414926535900345
+
+julia> @btime startonthread(2, ()->machin_series(10_000, handover=true))
+  2.477 ms (10045 allocations: 160.48 KiB)
+3.1414926535900345
+
+julia> @btime startonthread(3, ()->machin_series(10_000, handover=true))
+  2.499 ms (10045 allocations: 160.48 KiB)
+3.1414926535900345
+...
+```
+and likewise ...
+```julia
+➜  chain (master) julia --startup-file=no do_benchmark.jl                   ✭ ✱
+Benchmark results on thread 1-4 without yielding:
+  430.705 μs (43 allocations: 4.20 KiB)
+  447.144 μs (45 allocations: 4.23 KiB)
+  459.419 μs (45 allocations: 4.23 KiB)
+  452.955 μs (43 allocations: 4.20 KiB)
+Benchmark results on thread 1-4 with yielding:
+  154.465 ms (10044 allocations: 160.47 KiB)
+  2.385 ms (10045 allocations: 160.48 KiB)
+  2.369 ms (10045 allocations: 160.48 KiB)
+  2.369 ms (10045 allocations: 160.48 KiB)
+```
+If we yield, things take much longer on thread 1 than on other ones.
+
+Paul Bayer, 2020-02-26
