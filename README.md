@@ -30,10 +30,8 @@ function machin_series(n::Int; handover=false)
     qpi*4
 end
 
-julia> @btime onthread(1) do
-           machin_series(10_000, handover=true)
-       end
-  153.428 ms (10045 allocations: 160.48 KiB)
+julia> @btime machin_series(10_000, handover=true)
+  158.559 ms (10000 allocations: 156.25 KiB)
 3.1414926535900345
 
 julia> @btime onthread(2) do
