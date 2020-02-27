@@ -1,5 +1,9 @@
 module ThreadingExperiments
 
-greet() = print("Hello World!")
+using .Threads
+
+include("utils.jl")
+
+export onthread
 
 end # module
